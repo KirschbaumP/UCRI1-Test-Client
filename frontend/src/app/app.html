@@ -1,0 +1,53 @@
+<nz-layout class="shell">
+  <nz-sider nzCollapsible nzBreakpoint="lg" [nzCollapsedWidth]="56" nzWidth="230px" nzTheme="dark">
+    <div class="logo">
+      <span class="logo-text">UCRI</span>
+      <span class="logo-sub">Test-Client</span>
+    </div>
+    <ul nz-menu nzTheme="dark" nzMode="inline">
+      @for (item of menu; track item.path) {
+        <li nz-menu-item nzMatchRouter [routerLink]="item.path" routerLinkActive>
+          <nz-icon [nzType]="item.icon" />
+          <span>{{ item.label }}</span>
+          @if (item.path === '/incidents' && unansweredInbound()) {
+            <nz-badge nzStandalone [nzCount]="unansweredInbound()" class="menu-badge" />
+          }
+        </li>
+      }
+    </ul>
+  </nz-sider>
+  <nz-layout>
+    <nz-header class="header">
+      <div class="header-left">
+        <nz-tag nzColor="geekblue" class="version-tag" nz-tooltip nzTooltipTitle="Beim Start per Config/ENV (UCRI_VERSION) festgelegt">
+          UCRI {{ config().ucriVersion }}
+        </nz-tag>
+        <span class="own">
+          {{ config().ownControlCenterName }} <code>{{ config().ownControlCenterId }}</code>
+        </span>
+      </div>
+      <div class="header-right">
+        <span class="label">Partner</span>
+        <nz-select
+          class="partner-select"
+          [ngModel]="appConfig.selectedPartnerId()"
+          (ngModelChange)="appConfig.selectedPartnerId.set($event)"
+          nzPlaceHolder="Partner wählen"
+        >
+          @for (p of config().partners; track p.id) {
+            <nz-option [nzValue]="p.id" [nzLabel]="p.name + ' (' + p.id + ')'" />
+          }
+        </nz-select>
+        <nz-badge
+          [nzStatus]="live.connected() ? 'success' : 'error'"
+          [nzText]="live.connected() ? 'live' : 'getrennt'"
+          nz-tooltip
+          nzTooltipTitle="Live-Verbindung zum Backend (Server-Sent Events)"
+        />
+      </div>
+    </nz-header>
+    <nz-content class="content">
+      <router-outlet />
+    </nz-content>
+  </nz-layout>
+</nz-layout>

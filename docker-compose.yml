@@ -1,0 +1,16 @@
+services:
+  ucri-test-client:
+    build: .
+    image: ucri-test-client:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # UCRI-Version beim Start festlegen: "1.0" oder "1.1"
+      UCRI_VERSION: "1.1"
+      # Öffentliche Url der eigenen /api, wie sie Partner erreichen
+      PUBLIC_BASE_URL: "http://localhost:3000/api"
+      # JWT_SECRET: "bitte-setzen"
+    # Eigene Konfiguration (Partner, Credentials, Stammdaten) einbinden:
+    # volumes:
+    #   - ./config/ucri.config.json:/app/config/ucri.config.json:ro
+    restart: unless-stopped

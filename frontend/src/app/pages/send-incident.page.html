@@ -1,0 +1,258 @@
+@let inc = incident();
+<div class="page-title">
+  <h2>Einsatz senden <span class="muted">(5.3 POST /api/incidents)</span></h2>
+  <div class="toolbar">
+    <button nz-button (click)="loadSample(false)"><nz-icon nzType="thunderbolt" /> Beispiel: Einsatzübergabe</button>
+    <button nz-button (click)="loadSample(true)"><nz-icon nzType="thunderbolt" /> Beispiel: Einsatzmittelanforderung</button>
+    <button nz-button nz-popconfirm nzPopconfirmTitle="Formular leeren?" (nzOnConfirm)="clear()">
+      <nz-icon nzType="clear" /> Leeren
+    </button>
+  </div>
+</div>
+
+<div nz-row [nzGutter]="16">
+  <div nz-col [nzXs]="24" [nzXXl]="17">
+    <nz-tabs [nzSelectedIndex]="tabIndex()" (nzSelectedIndexChange)="onTabChange($event)" nzType="card">
+      <nz-tab nzTitle="Formular">
+        <nz-card nzTitle="Kopfdaten (Incident-DTO)" nzSize="small">
+          <div nz-row [nzGutter]="16">
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">id <span class="muted">Eindeutige ID des Einsatzes</span></label>
+              <input nz-input [(ngModel)]="inc.id" (ngModelChange)="touch()" />
+            </div>
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">sharedIncidentId <span class="muted">GUID, vom Absender festgelegt</span></label>
+              <nz-input-group [nzAddOnAfter]="uuidBtn">
+                <input nz-input [(ngModel)]="inc.sharedIncidentId" (ngModelChange)="touch()" />
+              </nz-input-group>
+              <ng-template #uuidBtn>
+                <a (click)="newSharedId()" nz-tooltip nzTooltipTitle="neue GUID"><nz-icon nzType="sync" /></a>
+              </ng-template>
+            </div>
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">sender <span class="muted">sendende Leitstelle</span></label>
+              <input nz-input [(ngModel)]="inc.sender" (ngModelChange)="touch()" />
+            </div>
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">target <span class="muted">empfangende Leitstelle</span></label>
+              <input nz-input [(ngModel)]="inc.target" (ngModelChange)="touch()" />
+            </div>
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">sentByDispatcherAt <span class="muted">UTC, ISO 8601</span></label>
+              <nz-input-group [nzAddOnAfter]="nowDisp">
+                <input nz-input [(ngModel)]="inc.sentByDispatcherAt" (ngModelChange)="touch()" />
+              </nz-input-group>
+              <ng-template #nowDisp><a (click)="now('sentByDispatcherAt')"><nz-icon nzType="clock-circle" /></a></ng-template>
+            </div>
+            <div nz-col [nzXs]="24" [nzMd]="12">
+              <label class="lbl">sentByElsAt <span class="muted">wird beim Senden aktualisiert</span></label>
+              <nz-input-group [nzAddOnAfter]="nowEls">
+                <input nz-input [(ngModel)]="inc.sentByElsAt" (ngModelChange)="touch()" />
+              </nz-input-group>
+              <ng-template #nowEls><a (click)="now('sentByElsAt')"><nz-icon nzType="clock-circle" /></a></ng-template>
+            </div>
+            <div nz-col [nzSpan]="24">
+              <label class="lbl">
+                classifications <span class="muted">Stichwortkürzel – freie Eingabe oder aus dem Katalog des Partners</span>
+              </label>
+              <div class="inline">
+                <nz-select
+                  nzMode="tags"
+                  class="grow"
+                  [(ngModel)]="inc.classifications"
+                  (ngModelChange)="touch()"
+                  nzPlaceHolder="z.B. B1"
+                >
+                  @for (c of partnerClassifications(); track c.abbreviation) {
+                    <nz-option [nzValue]="c.abbreviation" [nzLabel]="c.abbreviation + ' – ' + c.description" />
+                  }
+                </nz-select>
+                <button nz-button [nzLoading]="masterData.loading()" (click)="loadMasterData()" nz-tooltip nzTooltipTitle="5.7/5.8 Stichworte und Einsatzmitteltypen des Partners laden">
+                  <nz-icon nzType="database" /> Partner-Katalog
+                </button>
+              </div>
+            </div>
+          </div>
+        </nz-card>
+
+        <nz-card nzTitle="Einsatz-Appendices (4.2.4.1)" nzSize="small">
+          <app-appendix-editor scope="incident" [appendices]="incidentAppendices()" (changed)="touch()" />
+        </nz-card>
+
+        <nz-card nzSize="small" [nzTitle]="'Einsatzmittelanforderungen (4.13) – ' + list('requestedResources').length" [nzExtra]="addReqTpl">
+          <ng-template #addReqTpl>
+            <button nz-button nzSize="small" (click)="addRequest()"><nz-icon nzType="plus" /> Anforderung</button>
+          </ng-template>
+          @if (list('requestedResources').length) {
+            <nz-table [nzData]="list('requestedResources')" nzSize="small" [nzShowPagination]="false" [nzFrontPagination]="false">
+              <thead>
+                <tr>
+                  <th>requestId</th>
+                  <th>resourceType</th>
+                  <th>targetId</th>
+                  <th>resourceName</th>
+                  <th>resourceId</th>
+                  <th nzWidth="48px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of list('requestedResources'); track $index; let i = $index) {
+                  <tr>
+                    <td><input nz-input nzSize="small" [(ngModel)]="r.requestId" (ngModelChange)="touch()" /></td>
+                    <td>
+                      <nz-select nzSize="small" nzShowSearch nzAllowClear class="type-select" [(ngModel)]="r.resourceType" (ngModelChange)="touch()" [nzDropdownMatchSelectWidth]="false">
+                        @for (t of partnerResourceTypes(); track t.abbreviation) {
+                          <nz-option [nzValue]="t.abbreviation" [nzLabel]="t.abbreviation + ' – ' + t.description" />
+                        }
+                        @for (t of ['RTW', 'NEF', 'KTW', 'HLF', 'DLK', 'TLF']; track t) {
+                          @if (!hasType(t)) {
+                            <nz-option [nzValue]="t" [nzLabel]="t" />
+                          }
+                        }
+                        @if (r.resourceType && !hasType(r.resourceType) && !['RTW', 'NEF', 'KTW', 'HLF', 'DLK', 'TLF'].includes(r.resourceType)) {
+                          <nz-option [nzValue]="r.resourceType" [nzLabel]="r.resourceType" />
+                        }
+                      </nz-select>
+                    </td>
+                    <td><input nz-input nzSize="small" [(ngModel)]="r.targetId" (ngModelChange)="touch()" /></td>
+                    <td><input nz-input nzSize="small" [(ngModel)]="r.resourceName" (ngModelChange)="touch()" /></td>
+                    <td><input nz-input nzSize="small" [(ngModel)]="r.resourceId" (ngModelChange)="touch()" /></td>
+                    <td>
+                      <button nz-button nzType="text" nzDanger nzSize="small" (click)="remove(list('requestedResources'), i)">
+                        <nz-icon nzType="delete" />
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </nz-table>
+          } @else {
+            <span class="muted">Keine Anforderungen – reine Einsatzübergabe.</span>
+          }
+        </nz-card>
+
+        <nz-card nzSize="small" [nzTitle]="'Ressourcen (4.10) – ' + list('resources').length" [nzExtra]="addResTpl">
+          <ng-template #addResTpl>
+            <button nz-button nzSize="small" (click)="addResource()"><nz-icon nzType="plus" /> Ressource</button>
+          </ng-template>
+          @for (res of list('resources'); track $index; let i = $index) {
+            <div class="sub">
+              <div class="sub-head">
+                <span>Ressource</span>
+                <input nz-input nzSize="small" class="id-input" placeholder="resourceId" [(ngModel)]="res.resourceId" (ngModelChange)="touch()" />
+                <input nz-input nzSize="small" class="id-input" placeholder="stationId" [(ngModel)]="res.stationId" (ngModelChange)="touch()" />
+                <button nz-button nzType="text" nzDanger nzSize="small" (click)="remove(list('resources'), i)"><nz-icon nzType="delete" /></button>
+              </div>
+              <app-appendix-editor scope="resource" [appendices]="res.appendices" (changed)="touch()" />
+              <nz-divider nzOrientation="left" nzPlain [nzText]="'Patienten der Ressource (' + patientsOf(res).length + ')'" />
+              @for (pt of patientsOf(res); track $index; let j = $index) {
+                <div class="sub nested">
+                  <div class="sub-head">
+                    <span>Patient</span>
+                    <input nz-input nzSize="small" class="id-input" placeholder="id" [(ngModel)]="pt.id" (ngModelChange)="touch()" />
+                    <button nz-button nzType="text" nzDanger nzSize="small" (click)="remove(patientsOf(res), j)"><nz-icon nzType="delete" /></button>
+                  </div>
+                  <app-appendix-editor scope="patient" [appendices]="pt.appendices" (changed)="touch()" />
+                </div>
+              }
+              <button nz-button nzSize="small" nzType="dashed" (click)="addPatient(patientsOf(res))"><nz-icon nzType="plus" /> Patient</button>
+            </div>
+          }
+        </nz-card>
+
+        <nz-card nzSize="small" [nzTitle]="'Patienten ohne Ressource (4.11) – ' + list('patients').length" [nzExtra]="addPatTpl">
+          <ng-template #addPatTpl>
+            <button nz-button nzSize="small" (click)="addPatient(list('patients'))"><nz-icon nzType="plus" /> Patient</button>
+          </ng-template>
+          @for (pt of list('patients'); track $index; let i = $index) {
+            <div class="sub">
+              <div class="sub-head">
+                <span>Patient</span>
+                <input nz-input nzSize="small" class="id-input" placeholder="id" [(ngModel)]="pt.id" (ngModelChange)="touch()" />
+                <button nz-button nzType="text" nzDanger nzSize="small" (click)="remove(list('patients'), i)"><nz-icon nzType="delete" /></button>
+              </div>
+              <app-appendix-editor scope="patient" [appendices]="pt.appendices" (changed)="touch()" />
+            </div>
+          }
+        </nz-card>
+
+        <nz-card nzSize="small" [nzTitle]="'Mitteiler (4.9) – ' + list('informers').length" [nzExtra]="addInfTpl">
+          <ng-template #addInfTpl>
+            <button nz-button nzSize="small" (click)="addInformer()"><nz-icon nzType="plus" /> Mitteiler</button>
+          </ng-template>
+          @for (inf of list('informers'); track $index; let i = $index) {
+            <div class="sub">
+              <div class="sub-head">
+                <span>Mitteiler</span>
+                <input nz-input nzSize="small" class="id-input" placeholder="id" [(ngModel)]="inf.id" (ngModelChange)="touch()" />
+                <button nz-button nzType="text" nzDanger nzSize="small" (click)="remove(list('informers'), i)"><nz-icon nzType="delete" /></button>
+              </div>
+              <app-appendix-editor scope="informer" [appendices]="inf.appendices" (changed)="touch()" />
+            </div>
+          }
+        </nz-card>
+      </nz-tab>
+
+      <nz-tab nzTitle="JSON">
+        <nz-card nzSize="small">
+          @if (jsonError()) {
+            <nz-alert nzType="error" nzShowIcon [nzMessage]="'Ungültiges JSON: ' + jsonError()" class="json-alert" />
+          }
+          <textarea
+            nz-input
+            class="json-editor"
+            spellcheck="false"
+            [ngModel]="jsonText()"
+            (ngModelChange)="onJsonChange($event)"
+          ></textarea>
+          <p class="muted">
+            Änderungen werden sofort übernommen. Felder wie <code>sections</code> sind nur hier bearbeitbar.
+            Für Negativtests kann beliebiges JSON gesendet werden („trotzdem senden“).
+          </p>
+        </nz-card>
+      </nz-tab>
+    </nz-tabs>
+  </div>
+
+  <div nz-col [nzXs]="24" [nzXXl]="7">
+    <nz-card nzTitle="Prüfung & Versand" nzSize="small" class="sticky">
+      <p>
+        Empfänger:
+        @if (partner(); as p) {
+          <strong>{{ p.name }}</strong> <code>{{ p.baseUrl }}/incidents</code>
+        } @else {
+          <nz-tag nzColor="red">kein Partner gewählt</nz-tag>
+        }
+      </p>
+      <p>
+        Validierung gegen <nz-tag nzColor="geekblue">UCRI {{ cfg().ucriVersion }}</nz-tag>
+        <nz-tag [nzColor]="errorCount() ? 'red' : 'green'">{{ errorCount() }} Fehler</nz-tag>
+        <nz-tag [nzColor]="warningCount() ? 'orange' : 'default'">{{ warningCount() }} Warnungen</nz-tag>
+      </p>
+      <div class="issues">
+        <app-issue-list [issues]="validation().issues" [showEmpty]="true" />
+      </div>
+      <div class="toolbar send">
+        <button nz-button nzType="primary" [disabled]="!partner() || errorCount() > 0" [nzLoading]="call.loading()" (click)="send()">
+          <nz-icon nzType="send" /> Senden
+        </button>
+        @if (errorCount() > 0) {
+          <button
+            nz-button
+            nzDanger
+            [disabled]="!partner()"
+            nz-popconfirm
+            nzPopconfirmTitle="Ungültigen Einsatz trotzdem senden (Negativtest)?"
+            (nzOnConfirm)="send(true)"
+          >
+            Trotzdem senden
+          </button>
+        }
+        @if (call.result()?.ok) {
+          <a routerLink="/incidents">→ Quittierungen verfolgen</a>
+        }
+      </div>
+      <app-call-result [result]="call.result()" />
+    </nz-card>
+  </div>
+</div>

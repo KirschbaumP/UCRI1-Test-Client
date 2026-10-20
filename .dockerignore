@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.angular
+**/coverage
+**/*.tsbuildinfo
+**/out-tsc
+.git
+.DS_Store
+specs
+Dockerfile
+docker-compose.yml
+.dockerignore

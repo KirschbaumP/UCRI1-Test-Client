@@ -1,0 +1,266 @@
+@let rec = record();
+@let inc = incident();
+
+<nz-descriptions nzBordered nzSize="small" [nzColumn]="{ xxl: 3, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }">
+  <nz-descriptions-item nzTitle="Richtung">
+    <nz-tag [nzColor]="inbound() ? 'purple' : 'cyan'">{{ inbound() ? 'empfangen' : 'gesendet' }}</nz-tag>
+    {{ rec.at | date: 'dd.MM.yyyy HH:mm:ss' }}
+  </nz-descriptions-item>
+  <nz-descriptions-item nzTitle="sharedIncidentId"><code>{{ rec.sharedIncidentId }}</code></nz-descriptions-item>
+  <nz-descriptions-item nzTitle="id">{{ inc.id }}</nz-descriptions-item>
+  <nz-descriptions-item nzTitle="sender → target">{{ inc.sender }} → {{ inc.target }}</nz-descriptions-item>
+  <nz-descriptions-item nzTitle="Stichworte">
+    @for (c of inc.classifications; track $index) {
+      <nz-tag>{{ c }}</nz-tag>
+    }
+  </nz-descriptions-item>
+  <nz-descriptions-item nzTitle="sentByDispatcherAt / sentByElsAt">
+    {{ inc.sentByDispatcherAt ?? '–' }} / {{ inc.sentByElsAt ?? '–' }}
+  </nz-descriptions-item>
+  <nz-descriptions-item [nzTitle]="inbound() ? 'Antworten an Partner' : 'Partner'">
+    <nz-select
+      nzSize="small"
+      style="min-width: 200px"
+      [ngModel]="replyPartnerId()"
+      (ngModelChange)="replyPartnerId.set($event)"
+      nzPlaceHolder="Partner wählen"
+    >
+      @for (p of cfg().partners; track p.id) {
+        <nz-option [nzValue]="p.id" [nzLabel]="p.name" />
+      }
+    </nz-select>
+    @if (rec.fromClientId) {
+      <span class="muted"> Client-Id des Absenders: {{ rec.fromClientId }}</span>
+    }
+  </nz-descriptions-item>
+</nz-descriptions>
+
+@if (inbound()) {
+  <div class="toolbar">
+    <button nz-button (click)="openAck('retrieved')">
+      <nz-icon nzType="check" /> Übertragung quittieren (retrieved)
+      @if (hasAck('retrieved')) {
+        <nz-tag nzColor="green">✓</nz-tag>
+      }
+    </button>
+    <button nz-button nzType="primary" (click)="openAck('confirm', 'Accepted')"><nz-icon nzType="check" /> Einsatz annehmen</button>
+    <button nz-button nzDanger (click)="openAck('confirm', 'Rejected')"><nz-icon nzType="close" /> Einsatz ablehnen</button>
+  </div>
+}
+
+<nz-tabs nzSize="small">
+  <nz-tab [nzTitle]="'Quittierungen (' + (rec.confirmations.length + rec.resourceRequestConfirmations.length) + ')'">
+    <h4>Einsatzübergabe (5.5)</h4>
+    @if (rec.confirmations.length) {
+      <nz-timeline>
+        @for (c of rec.confirmations; track $index) {
+          <nz-timeline-item [nzColor]="c.body.status === 'Rejected' ? 'red' : c.type === 'confirm' ? 'green' : 'blue'">
+            <strong>{{ c.type }}</strong>
+            <nz-tag [nzColor]="c.body.status === 'Rejected' ? 'red' : 'green'">{{ c.body.status }}</nz-tag>
+            <span class="muted">
+              {{ c.direction === 'inbound' ? 'empfangen von ' : 'gesendet an ' }}{{ c.peer ?? '?' }} · {{ c.at | date: 'HH:mm:ss' }}
+            </span>
+            @if (c.body.cause) {
+              <div>Grund: {{ c.body.cause }}</div>
+            }
+            @if (c.body.appendices?.length) {
+              <app-appendix-table scope="confirmation" [appendices]="c.body.appendices" />
+            }
+            <app-issue-list [issues]="c.issues" />
+          </nz-timeline-item>
+        }
+      </nz-timeline>
+    } @else {
+      <p class="muted">
+        {{ inbound() ? 'Noch keine Quittierung gesendet.' : 'Noch keine Quittierung vom Partner empfangen.' }}
+      </p>
+    }
+
+    <h4>Einsatzmittelanforderungen (5.6)</h4>
+    @if (inc.requestedResources?.length) {
+      <nz-table [nzData]="inc.requestedResources!" nzSize="small" [nzShowPagination]="false" [nzFrontPagination]="false">
+        <thead>
+          <tr>
+            <th>requestId</th>
+            <th>Typ</th>
+            <th>Name / Id</th>
+            <th>Quittierungen</th>
+            @if (inbound()) {
+              <th>Aktion</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (rr of inc.requestedResources; track rr.requestId) {
+            <tr>
+              <td><code>{{ rr.requestId }}</code></td>
+              <td>{{ rr.resourceType }}</td>
+              <td>{{ rr.resourceName ?? '–' }} / {{ rr.resourceId ?? '–' }}</td>
+              <td>
+                @for (c of confirmationsFor(rr.requestId); track $index) {
+                  <div>
+                    <nz-tag [nzColor]="actionColors[c.action]">{{ c.action }}</nz-tag>
+                    <span class="muted">{{ c.direction === 'inbound' ? '⇠' : '⇢' }} {{ c.at | date: 'HH:mm:ss' }}</span>
+                    {{ $any(c.body).resourceName ?? $any(c.body).reason ?? '' }}
+                    {{ c.body.message ? '– ' + c.body.message : '' }}
+                    <app-issue-list [issues]="c.issues" />
+                  </div>
+                } @empty {
+                  <span class="muted">keine</span>
+                }
+              </td>
+              @if (inbound()) {
+                <td>
+                  <nz-select nzSize="small" nzPlaceHolder="quittieren…" style="width: 200px" [ngModel]="null" (ngModelChange)="$event && openRr(rr, $event)">
+                    @for (a of actions; track a) {
+                      <nz-option [nzValue]="a" [nzLabel]="actionLabels[a]" />
+                    }
+                  </nz-select>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+    } @else {
+      <p class="muted">Der Einsatz enthält keine Einsatzmittelanforderungen.</p>
+    }
+  </nz-tab>
+
+  <nz-tab nzTitle="Einsatzdaten">
+    <app-appendix-table scope="incident" [appendices]="inc.appendices" />
+  </nz-tab>
+
+  <nz-tab [nzTitle]="'Ressourcen (' + (inc.resources?.length ?? 0) + ')'">
+    @for (r of inc.resources ?? []; track $index) {
+      <div class="sub">
+        <nz-divider nzOrientation="left" [nzText]="'Ressource ' + (r.resourceId ?? r.id ?? '')" />
+        <app-appendix-table scope="resource" [appendices]="r.appendices" />
+        @for (p of r.patients ?? []; track $index) {
+          <h4>Patient {{ p.id }}</h4>
+          <app-appendix-table scope="patient" [appendices]="p.appendices" />
+        }
+      </div>
+    } @empty {
+      <p class="muted">keine</p>
+    }
+  </nz-tab>
+
+  <nz-tab [nzTitle]="'Patienten (' + (inc.patients?.length ?? 0) + ')'">
+    @for (p of inc.patients ?? []; track $index) {
+      <div class="sub">
+        <nz-divider nzOrientation="left" [nzText]="'Patient ' + p.id" />
+        <app-appendix-table scope="patient" [appendices]="p.appendices" />
+      </div>
+    } @empty {
+      <p class="muted">keine</p>
+    }
+  </nz-tab>
+
+  <nz-tab [nzTitle]="'Mitteiler (' + (inc.informers?.length ?? 0) + ')'">
+    @for (m of inc.informers ?? []; track $index) {
+      <div class="sub">
+        <nz-divider nzOrientation="left" [nzText]="'Mitteiler ' + m.id" />
+        <app-appendix-table scope="informer" [appendices]="m.appendices" />
+      </div>
+    } @empty {
+      <p class="muted">keine</p>
+    }
+  </nz-tab>
+
+  <nz-tab [nzTitle]="'Nachrichten (' + rec.messages.length + ')'">
+    <app-chat [record]="rec" [partnerId]="replyPartnerId()" />
+  </nz-tab>
+
+  <nz-tab [nzTitle]="'Validierung (' + rec.issues.length + ')'">
+    <app-issue-list [issues]="rec.issues" [showEmpty]="true" />
+  </nz-tab>
+
+  <nz-tab nzTitle="JSON">
+    <app-json-view [value]="inc" maxHeight="60vh" />
+  </nz-tab>
+</nz-tabs>
+
+<app-call-result [result]="call.result()" [showBody]="false" />
+
+<!-- 5.5 Quittierung Einsatzübergabe -->
+<nz-modal
+  [nzVisible]="ackOpen()"
+  (nzOnCancel)="ackOpen.set(false)"
+  [nzTitle]="'Quittierung ' + ackType() + ' senden (PUT …/acknowledgements/' + ackType() + ')'"
+  nzWidth="760px"
+  [nzOkText]="'Senden'"
+  [nzOkLoading]="call.loading()"
+  [nzOkDisabled]="!replyPartnerId()"
+  (nzOnOk)="sendAck()"
+>
+  <ng-container *nzModalContent>
+    <div class="form-row">
+      <label>status</label>
+      <nz-radio-group [ngModel]="ackStatus()" (ngModelChange)="ackStatus.set($event)">
+        <label nz-radio-button nzValue="Accepted">Accepted</label>
+        <label nz-radio-button nzValue="Rejected">Rejected</label>
+      </nz-radio-group>
+    </div>
+    <div class="form-row">
+      <label>cause <span class="muted">Grund bei Fehler oder Ablehnung</span></label>
+      <input nz-input [ngModel]="ackCause()" (ngModelChange)="ackCause.set($event)" />
+    </div>
+    <div class="form-row">
+      <label>appendices <span class="muted">Confirmation Appendices (4.2.4.5) sind erst ab UCRI 1.1 definiert</span></label>
+      <app-appendix-editor scope="confirmation" [appendices]="ackAppendices()" />
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- 5.6 Quittierung Einsatzmittelanforderung -->
+<nz-modal
+  [nzVisible]="!!rrForm()"
+  (nzOnCancel)="rrForm.set(null)"
+  [nzTitle]="rrForm() ? 'Einsatzmittelanforderung ' + rrForm()!.request.requestId + ': ' + actionLabels[rrForm()!.action] : ''"
+  nzWidth="640px"
+  nzOkText="Senden"
+  [nzOkLoading]="call.loading()"
+  [nzOkDisabled]="!replyPartnerId()"
+  (nzOnOk)="sendRr()"
+>
+  <ng-container *nzModalContent>
+    @if (rrForm(); as f) {
+      <div class="form-row">
+        <label>Aktion</label>
+        <nz-select [(ngModel)]="f.action" style="width: 100%">
+          @for (a of actions; track a) {
+            <nz-option [nzValue]="a" [nzLabel]="actionLabels[a]" />
+          }
+        </nz-select>
+      </div>
+      @if (f.action === 'accept' || f.action === 'confirmTurnOut') {
+        <div class="form-row">
+          <label>resourceType</label>
+          <input nz-input [(ngModel)]="f.resourceType" />
+        </div>
+        <div class="form-row">
+          <label>resourceName</label>
+          <input nz-input [(ngModel)]="f.resourceName" />
+        </div>
+        <div class="form-row">
+          <label>resourceId</label>
+          <input nz-input [(ngModel)]="f.resourceId" />
+        </div>
+      }
+      @if (f.action === 'reject') {
+        <div class="form-row">
+          <label>reason</label>
+          <input nz-input [(ngModel)]="f.reason" />
+        </div>
+      }
+      <div class="form-row">
+        <label>message</label>
+        <input nz-input [(ngModel)]="f.message" placeholder="Freitext" />
+      </div>
+      @if (f.action === 'confirmTurnOut' && !confirmationsFor(f.request.requestId).some(isAccept)) {
+        <nz-alert nzType="warning" nzShowIcon nzMessage="Laut Spec (4.17) erst nach einer positiven Quittierung (accept) zulässig." />
+      }
+    }
+  </ng-container>
+</nz-modal>
