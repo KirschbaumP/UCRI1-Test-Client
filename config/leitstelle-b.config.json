@@ -1,0 +1,99 @@
+{
+  "ucriVersion": "1.1",
+  "port": 3000,
+  "applicationName": "UCRI Test-Client",
+  "ownControlCenterId": "els-b",
+  "ownControlCenterName": "Leitstelle B",
+  "publicBaseUrl": "http://leitstelle-b:3000/api",
+  "jwtSecret": "bitte-aendern-b",
+  "tokenLifetimeSec": 3600,
+  "tokenExpiresInFormat": "seconds",
+  "strictRequiredAppendices": false,
+  "requestTimeoutMs": 15000,
+  "inboundClients": [
+    {
+      "clientId": "els-b",
+      "clientSecret": "secret-b"
+    },
+    {
+      "clientId": "els-a",
+      "clientSecret": "secret-a-an-b"
+    }
+  ],
+  "partners": [
+    {
+      "id": "els-a",
+      "name": "Leitstelle A",
+      "baseUrl": "http://leitstelle-a:3000/api",
+      "clientId": "els-b",
+      "clientSecret": "secret-b-an-a",
+      "controlCenterId": "els-a"
+    },
+    {
+      "id": "self",
+      "name": "Loopback (diese Anwendung)",
+      "baseUrl": "http://localhost:3000/api",
+      "clientId": "els-b",
+      "clientSecret": "secret-b",
+      "controlCenterId": "els-b"
+    }
+  ],
+  "classifications": [
+    {
+      "abbreviation": "B1",
+      "description": "kleiner Brand",
+      "classificationGroup": "fw sofort"
+    },
+    {
+      "abbreviation": "B2",
+      "description": "mittlerer Brand",
+      "classificationGroup": "fw sofort"
+    },
+    {
+      "abbreviation": "TH1",
+      "description": "kleine technische Hilfe",
+      "classificationGroup": "fw sofort"
+    },
+    {
+      "abbreviation": "RD1",
+      "description": "Notfall ohne Notarzt",
+      "classificationGroup": "rd sofort"
+    },
+    {
+      "abbreviation": "RD2",
+      "description": "Notfall mit Notarzt",
+      "classificationGroup": "rd sofort"
+    },
+    {
+      "abbreviation": "KTP",
+      "description": "Krankentransport",
+      "classificationGroup": "rd planbar"
+    }
+  ],
+  "resourceTypes": [
+    {
+      "abbreviation": "RTW",
+      "description": "Rettungswagen"
+    },
+    {
+      "abbreviation": "NEF",
+      "description": "Notarzteinsatzfahrzeug"
+    },
+    {
+      "abbreviation": "KTW",
+      "description": "Krankentransportwagen"
+    },
+    {
+      "abbreviation": "HLF",
+      "description": "Hilfeleistungslöschgruppenfahrzeug"
+    },
+    {
+      "abbreviation": "TLF",
+      "description": "Tanklöschfahrzeug"
+    },
+    {
+      "abbreviation": "DLK",
+      "description": "Drehleiter mit Korb"
+    }
+  ]
+}

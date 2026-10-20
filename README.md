@@ -30,9 +30,34 @@ Das Image enthält die gebündelte Anwendung: das Angular-Frontend, die UCRI-API
 ```bash
 docker build -t ucri-test-client .
 docker run -p 3000:3000 -e UCRI_VERSION=1.1 ucri-test-client
-# oder
+```
+
+Fertige Images liegen in der GitHub Container Registry (gebaut per GitHub Actions, `.github/workflows/docker.yml`):
+
+```bash
+docker run -p 3000:3000 ghcr.io/kirschbaump/ucri1-test-client:latest
+```
+
+| Auslöser                 | Image-Tags                                   |
+| ------------------------ | -------------------------------------------- |
+| Git-Tag, z.B. `v1.2.3`   | `v1.2.3`, `1.2.3`, `1.2`, `latest`           |
+| Push auf `main`          | `main`, `sha-<commit>`                       |
+| Pull Request             | wird nur gebaut, nicht veröffentlicht        |
+
+### Zwei Leitstellen mit Docker Compose
+
+`docker-compose.yml` startet den Container zweimal, als Leitstelle A und Leitstelle B, die sich gegenseitig als Partner kennen:
+
+```bash
 docker compose up --build
 ```
+
+| Leitstelle | Frontend                | Adresse für den Partner (im Compose-Netz) | Konfiguration                       |
+| ---------- | ----------------------- | ----------------------------------------- | ----------------------------------- |
+| A (`els-a`) | http://localhost:3001  | `http://leitstelle-a:3000/api`            | `config/leitstelle-a.config.json`   |
+| B (`els-b`) | http://localhost:3002  | `http://leitstelle-b:3000/api`            | `config/leitstelle-b.config.json`   |
+
+Jede Leitstelle hat zusätzlich den Loopback-Partner `self`.
 
 Umgebungsvariablen: `UCRI_VERSION`, `PORT`, `PUBLIC_BASE_URL`, `JWT_SECRET`, `CONFIG_PATH`.
 Für eigene Partner und Credentials mountest du eine Konfiguration:
@@ -114,5 +139,5 @@ npm test   # shared (Validierung), Backend Unit + e2e (inkl. Loopback), Frontend
 shared/    DTO-Typen, Appendix-Katalog (Kap. 4.2.4), Validierung, Beispiel-Einsatz
 backend/   NestJS: config/, ucri-server/ (eigene /api), ucri-client/ (Partner), ui-api/, state/
 frontend/  Angular + ng-zorro
-config/    ucri.config.json
+config/    ucri.config.json, leitstelle-{a,b}.config.json (Docker-Compose-Beispiel)
 ```

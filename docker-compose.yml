@@ -1,16 +1,40 @@
+# Zwei simulierte Leitstellen, die sich gegenseitig als UCRI-Partner kennen.
+#   Leitstelle A: http://localhost:3001   (intern: http://leitstelle-a:3000/api)
+#   Leitstelle B: http://localhost:3002   (intern: http://leitstelle-b:3000/api)
+# Partner, Credentials und Stammdaten stehen in config/leitstelle-{a,b}.config.json.
+#
+# Statt lokal zu bauen kann auch das veröffentlichte Image verwendet werden:
+#   image: ghcr.io/kirschbaump/ucri1-test-client:latest  (und "build" entfernen)
+
+x-ucri-test-client: &ucri-test-client
+  build: .
+  image: ucri-test-client:latest
+  environment: &env
+    # UCRI-Version beim Start festlegen: "1.0" oder "1.1"
+    UCRI_VERSION: "1.1"
+    CONFIG_PATH: /app/config/leitstelle.config.json
+  restart: unless-stopped
+
 services:
-  ucri-test-client:
-    build: .
-    image: ucri-test-client:latest
+  leitstelle-a:
+    <<: *ucri-test-client
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
-      # UCRI-Version beim Start festlegen: "1.0" oder "1.1"
-      UCRI_VERSION: "1.1"
+      <<: *env
       # Öffentliche Url der eigenen /api, wie sie Partner erreichen
-      PUBLIC_BASE_URL: "http://localhost:3000/api"
+      PUBLIC_BASE_URL: "http://leitstelle-a:3000/api"
       # JWT_SECRET: "bitte-setzen"
-    # Eigene Konfiguration (Partner, Credentials, Stammdaten) einbinden:
-    # volumes:
-    #   - ./config/ucri.config.json:/app/config/ucri.config.json:ro
-    restart: unless-stopped
+    volumes:
+      - ./config/leitstelle-a.config.json:/app/config/leitstelle.config.json:ro
+
+  leitstelle-b:
+    <<: *ucri-test-client
+    ports:
+      - "3002:3000"
+    environment:
+      <<: *env
+      PUBLIC_BASE_URL: "http://leitstelle-b:3000/api"
+      # JWT_SECRET: "bitte-setzen"
+    volumes:
+      - ./config/leitstelle-b.config.json:/app/config/leitstelle.config.json:ro
