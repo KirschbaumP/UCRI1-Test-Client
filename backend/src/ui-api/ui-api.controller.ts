@@ -18,6 +18,7 @@ import {
   getAppendixCatalog,
   type IncidentDto,
   type IncidentRecord,
+  JSON_MEDIA_TYPE,
   type MessageDto,
   type RawRequest,
   type ResourceRequestActionCall,
@@ -59,12 +60,15 @@ export class UiApiController {
       ownControlCenterName: c.ownControlCenterName,
       publicBaseUrl: c.publicBaseUrl,
       strictRequiredAppendices: c.strictRequiredAppendices,
+      tokenFieldNames: c.tokenFieldNames,
       partners: c.partners.map((p) => ({
         id: p.id,
         name: p.name,
         baseUrl: p.baseUrl,
         clientId: p.clientId,
         controlCenterId: p.controlCenterId ?? p.id,
+        contentType: p.contentType ?? JSON_MEDIA_TYPE,
+        basicAuthFormat: p.basicAuthFormat ?? 'secret',
       })),
     };
   }

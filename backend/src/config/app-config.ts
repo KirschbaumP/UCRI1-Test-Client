@@ -2,9 +2,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  type BasicAuthFormat,
   ClassificationDto,
   isUcriVersion,
+  JSON_MEDIA_TYPE,
   ResourceTypeDto,
+  SIMPLEMEDIA_TYPE,
+  type TokenFieldNames,
+  type UcriMediaType,
   UcriVersion,
 } from '@ucri/shared';
 
@@ -22,7 +27,25 @@ export interface PartnerConfig {
   clientSecret: string;
   /** Leitstellenkennung des Partners (sender/target im Incident-DTO), Default: id */
   controlCenterId?: string;
+  /** Content-Type, Accept und Response-Content-Type der Requests (Kap. 4.1), Default: application/json */
+  contentType?: UcriMediaType;
+  /** Basic-Credentials beim Authorize (Kap. 5.2), Default: secret */
+  basicAuthFormat?: BasicAuthFormat;
 }
+
+export const MEDIA_TYPES: readonly UcriMediaType[] = [
+  JSON_MEDIA_TYPE,
+  SIMPLEMEDIA_TYPE,
+];
+export const BASIC_AUTH_FORMATS: readonly BasicAuthFormat[] = [
+  'secret',
+  'clientIdAndSecret',
+];
+export const TOKEN_FIELD_NAMES: readonly TokenFieldNames[] = [
+  'camelCase',
+  'snakeCase',
+  'both',
+];
 
 export interface AppConfig {
   port: number;
@@ -36,6 +59,8 @@ export interface AppConfig {
   tokenLifetimeSec: number;
   /** Spec nennt expires_in "Unix-Timestamp", das Beispiel zeigt eine Dauer (3600) */
   tokenExpiresInFormat: 'seconds' | 'unixTimestamp';
+  /** Tabelle 4.5 und OpenAPI nennen camelCase (accessToken), das Beispiel snake_case (access_token) */
+  tokenFieldNames: TokenFieldNames;
   strictRequiredAppendices: boolean;
   requestTimeoutMs: number;
   inboundClients: InboundClientConfig[];
@@ -57,6 +82,7 @@ const DEFAULTS: Omit<AppConfig, 'ucriVersion'> = {
   jwtSecret: 'change-me',
   tokenLifetimeSec: 3600,
   tokenExpiresInFormat: 'seconds',
+  tokenFieldNames: 'both',
   strictRequiredAppendices: false,
   requestTimeoutMs: 15000,
   inboundClients: [],
@@ -136,6 +162,11 @@ export function validateAppConfig(c: AppConfig): void {
       'tokenExpiresInFormat muss "seconds" oder "unixTimestamp" sein',
     );
   }
+  if (!TOKEN_FIELD_NAMES.includes(c.tokenFieldNames)) {
+    errors.push(
+      `tokenFieldNames muss ${TOKEN_FIELD_NAMES.map((v) => `"${v}"`).join(', ')} sein`,
+    );
+  }
   const ids = new Set<string>();
   for (const [i, p] of c.partners.entries()) {
     for (const field of [
@@ -146,6 +177,19 @@ export function validateAppConfig(c: AppConfig): void {
       'clientSecret',
     ] as const) {
       if (!p[field]) errors.push(`partners[${i}].${field} fehlt`);
+    }
+    if (p.contentType !== undefined && !MEDIA_TYPES.includes(p.contentType)) {
+      errors.push(
+        `partners[${i}].contentType muss ${MEDIA_TYPES.map((v) => `"${v}"`).join(' oder ')} sein`,
+      );
+    }
+    if (
+      p.basicAuthFormat !== undefined &&
+      !BASIC_AUTH_FORMATS.includes(p.basicAuthFormat)
+    ) {
+      errors.push(
+        `partners[${i}].basicAuthFormat muss ${BASIC_AUTH_FORMATS.map((v) => `"${v}"`).join(' oder ')} sein`,
+      );
     }
     if (ids.has(p.id)) errors.push(`partners[${i}].id "${p.id}" ist doppelt`);
     ids.add(p.id);

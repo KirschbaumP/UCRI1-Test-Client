@@ -6,6 +6,7 @@ import {
   MessageDto,
   ResourceRequestAction,
   ResourceRequestConfirmationDto,
+  UcriMediaType,
 } from './dto.js';
 import { ValidationIssue } from './validation.js';
 import { UcriVersion } from './version.js';
@@ -15,12 +16,24 @@ import { UcriVersion } from './version.js';
  * Nicht Bestandteil der UCRI-Spezifikation.
  */
 
+/**
+ * Format der Basic-Credentials beim Authorize:
+ * `secret` = base64(Client-Secret) wie in Kap. 5.2,
+ * `clientIdAndSecret` = base64(Client-Id:Client-Secret) wie bei HTTP Basic Auth (OpenAPI).
+ */
+export type BasicAuthFormat = 'secret' | 'clientIdAndSecret';
+
+/** Feldnamen des JWT, das die eigene /authorize ausstellt (Kap. 4.5) */
+export type TokenFieldNames = 'camelCase' | 'snakeCase' | 'both';
+
 export interface PartnerView {
   id: string;
   name: string;
   baseUrl: string;
   clientId: string;
   controlCenterId: string;
+  contentType: UcriMediaType;
+  basicAuthFormat: BasicAuthFormat;
 }
 
 export interface AppConfigView {
@@ -31,6 +44,7 @@ export interface AppConfigView {
   ownControlCenterName: string;
   publicBaseUrl: string;
   strictRequiredAppendices: boolean;
+  tokenFieldNames: TokenFieldNames;
   partners: PartnerView[];
 }
 

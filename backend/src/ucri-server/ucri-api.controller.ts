@@ -22,7 +22,7 @@ import {
   type ConfirmationDto,
   type HomeDto,
   type IncidentDto,
-  type JwtDto,
+  type JwtResponseDto,
   type Link,
   type MessageDto,
   RESOURCE_REQUEST_ACTIONS,
@@ -64,9 +64,9 @@ export class UcriApiController {
   @Get('authorize')
   authorize(
     @Req() req: UcriRequest,
-    @Headers('authorization') authorization?: string,
-    @Headers('clientid') clientId?: string,
-  ): JwtDto {
+    @Headers('Authorization') authorization?: string,
+    @Headers('ClientId') clientId?: string,
+  ): JwtResponseDto {
     const result = this.tokens.authorize(authorization, clientId);
     if (!result.ok)
       throw new HttpException({ message: result.message }, result.status);

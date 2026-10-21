@@ -5,7 +5,9 @@ import {
   type ClassificationDto,
   type HomeDto,
   type IncidentDto,
+  JSON_MEDIA_TYPE,
   type JwtDto,
+  type JwtResponseDto,
   type MessageDto,
   type RawRequest,
   type ResourceRequestActionCall,
@@ -85,11 +87,11 @@ export class PartnerClientService {
   tokenStatus(partnerId: string): TokenStatus {
     const cached = this.tokens.get(this.partner(partnerId).id);
     if (!cached) return { partnerId, hasToken: false };
-    const t = cached.token.access_token;
+    const t = cached.token.accessToken;
     return {
       partnerId,
       hasToken: true,
-      tokenType: cached.token.token_type,
+      tokenType: cached.token.tokenType,
       expiresAt: new Date(cached.expiresAt).toISOString(),
       tokenPreview: t.length > 24 ? `${t.slice(0, 12)}…${t.slice(-8)}` : t,
     };
@@ -100,7 +102,7 @@ export class PartnerClientService {
   }
 
   /** 5.2 Authorize */
-  async authorize(partnerId: string): Promise<CallResult<JwtDto>> {
+  async authorize(partnerId: string): Promise<CallResult<JwtResponseDto>> {
     const partner = this.partner(partnerId);
     const res = await this.fetchToken(partner);
     return this.result(res, [res.entry]);
@@ -297,7 +299,7 @@ export class PartnerClientService {
     const traffic: TrafficEntry[] = [];
 
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      ...this.acceptHeaders(partner),
       ...(call.headers ?? {}),
     };
     if (call.auth === 'invalid')
@@ -306,7 +308,7 @@ export class PartnerClientService {
       const token = await this.ensureToken(partner, traffic);
       if (!token.ok) return token.result as CallResult<T>;
       headers['Authorization'] =
-        `${token.token.token_type || 'Bearer'} ${token.token.access_token}`;
+        `${token.token.tokenType || 'Bearer'} ${token.token.accessToken}`;
     }
 
     let res = await this.send(partner, call, headers);
@@ -318,7 +320,7 @@ export class PartnerClientService {
       const token = await this.ensureToken(partner, traffic);
       if (token.ok) {
         headers['Authorization'] =
-          `${token.token.token_type || 'Bearer'} ${token.token.access_token}`;
+          `${token.token.tokenType || 'Bearer'} ${token.token.accessToken}`;
         res = await this.send(partner, call, headers);
         traffic.push(res.entry);
       }
@@ -352,7 +354,12 @@ export class PartnerClientService {
 
   private async fetchToken(partner: PartnerConfig): Promise<HttpResponse> {
     const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
-    let expiresAt = 0;
+    // Kap. 5.2: base64(Secret); HTTP Basic Auth (OpenAPI): base64(Client-Id:Secret)
+    const credentials =
+      partner.basicAuthFormat === 'clientIdAndSecret'
+        ? `${partner.clientId}:${partner.clientSecret}`
+        : partner.clientSecret;
+    const received: { token?: JwtDto; expiresAt: number } = { expiresAt: 0 };
     const res = await this.send(
       partner,
       {
@@ -360,45 +367,76 @@ export class PartnerClientService {
         path: 'authorize',
         auth: 'none',
         inspect: (status, body) => {
-          const token = body as Partial<JwtDto> | undefined;
           if (status !== 200) return [];
-          if (!token || typeof token.access_token !== 'string') {
-            return [
-              {
-                severity: 'error',
-                path: 'access_token',
-                message: 'Antwort enthält kein access_token',
-              },
-            ];
-          }
-          const parsed = this.parseExpiresIn(token.expires_in);
-          expiresAt = parsed.expiresAt;
-          return parsed.issues;
+          const read = this.readToken(body);
+          if (!read.token) return read.issues;
+          const parsed = this.parseExpiresIn(read.token.expiresIn);
+          received.token = read.token;
+          received.expiresAt = parsed.expiresAt;
+          return [...read.issues, ...parsed.issues];
         },
       },
       {
-        Accept: 'application/json',
-        Authorization: `Basic ${b64(partner.clientSecret)}`,
+        ...this.acceptHeaders(partner),
+        Authorization: `Basic ${b64(credentials)}`,
         ClientId: b64(partner.clientId),
       },
     );
-    const token = res.body as Partial<JwtDto> | undefined;
-    if (res.status === 200 && token && typeof token.access_token === 'string') {
+    if (received.token) {
       this.tokens.set(partner.id, {
-        token: {
-          access_token: token.access_token,
-          expires_in: token.expires_in ?? 0,
-          token_type: token.token_type ?? 'Bearer',
-        },
-        expiresAt,
+        token: received.token,
+        expiresAt: received.expiresAt,
       });
     } else if (res.status === 200) {
-      res.error = 'Antwort enthält kein access_token';
+      res.error = 'Antwort enthält kein accessToken';
     }
     return res;
   }
 
-  /** expires_in ist laut Spec ein Unix-Timestamp, laut Beispiel eine Dauer in Sekunden – beides wird akzeptiert. */
+  /** Liest das JWT in camelCase (Tabelle 4.5, OpenAPI) oder snake_case (Beispiel in 4.5). */
+  private readToken(body: unknown): {
+    token?: JwtDto;
+    issues: ValidationIssue[];
+  } {
+    const dto = (body && typeof body === 'object' ? body : {}) as JwtResponseDto;
+    const accessToken = dto.accessToken ?? dto.access_token;
+    if (typeof accessToken !== 'string') {
+      return {
+        issues: [
+          {
+            severity: 'error',
+            path: 'accessToken',
+            message: 'Antwort enthält kein accessToken (bzw. access_token)',
+          },
+        ],
+      };
+    }
+    const issues: ValidationIssue[] = [];
+    if (typeof dto.accessToken !== 'string') {
+      issues.push({
+        severity: 'warning',
+        path: 'access_token',
+        message:
+          'JWT-Felder in snake_case (wie im Spec-Beispiel) statt camelCase (accessToken, expiresIn, tokenType laut Tabelle 4.5/OpenAPI) – akzeptiert',
+      });
+    }
+    return {
+      issues,
+      token: {
+        accessToken,
+        expiresIn: dto.expiresIn ?? dto.expires_in ?? 0,
+        tokenType: dto.tokenType ?? dto.token_type ?? 'Bearer',
+      },
+    };
+  }
+
+  /** Kap. 4.1: gewünschtes Format über Accept und Response-Content-Type */
+  private acceptHeaders(partner: PartnerConfig): Record<string, string> {
+    const mediaType = partner.contentType ?? JSON_MEDIA_TYPE;
+    return { Accept: mediaType, 'Response-Content-Type': mediaType };
+  }
+
+  /** expiresIn ist laut Spec ein Unix-Timestamp, laut Beispiel eine Dauer in Sekunden – beides wird akzeptiert. */
   private parseExpiresIn(expiresIn: unknown): {
     expiresAt: number;
     issues: ValidationIssue[];
@@ -410,9 +448,9 @@ export class PartnerClientService {
         issues: [
           {
             severity: 'warning',
-            path: 'expires_in',
+            path: 'expiresIn',
             message:
-              'expires_in fehlt oder ist ungültig – Token wird 5 Minuten verwendet',
+              'expiresIn fehlt oder ist ungültig – Token wird 5 Minuten verwendet',
           },
         ],
       };
@@ -423,8 +461,8 @@ export class PartnerClientService {
         issues: [
           {
             severity: 'warning',
-            path: 'expires_in',
-            message: 'expires_in als Unix-Timestamp interpretiert',
+            path: 'expiresIn',
+            message: 'expiresIn als Unix-Timestamp interpretiert',
           },
         ],
       };
@@ -455,7 +493,7 @@ export class PartnerClientService {
           (h) => h.toLowerCase() === 'content-type',
         )
       ) {
-        requestHeaders['Content-Type'] = 'application/json';
+        requestHeaders['Content-Type'] = partner.contentType ?? JSON_MEDIA_TYPE;
       }
     }
 

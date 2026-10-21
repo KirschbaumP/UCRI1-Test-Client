@@ -23,11 +23,33 @@ export interface HomeDto {
   links: Link[];
 }
 
-/** 4.5 JSON Web Token (Feldnamen laut Beispiel in snake_case) */
+/** 4.5 JSON Web Token (Feldnamen laut Tabelle 4.5 und OpenAPI in camelCase) */
 export interface JwtDto {
+  accessToken: string;
+  expiresIn: number;
+  tokenType: string;
+}
+
+/** 4.5 JSON Web Token (Feldnamen laut Beispiel der Spezifikation in snake_case) */
+export interface JwtSnakeCaseDto {
   access_token: string;
   expires_in: number;
   token_type: string;
+}
+
+/** Antwort von /authorize: camelCase, snake_case oder beides */
+export type JwtResponseDto = Partial<JwtDto> & Partial<JwtSnakeCaseDto>;
+
+/** 4.1 Hypermedia-Formate */
+export const JSON_MEDIA_TYPE = 'application/json';
+export const SIMPLEMEDIA_TYPE = 'application/vnd.simplemedia+json';
+export type UcriMediaType = typeof JSON_MEDIA_TYPE | typeof SIMPLEMEDIA_TYPE;
+
+/** Liefert die Einträge einer Liste – als JSON-Array oder als simplemedia-itemcollection (4.1.1). */
+export function itemsOf<T>(body: unknown): T[] {
+  if (Array.isArray(body)) return body as T[];
+  const coll = (body as { itemcollection?: { item: T }[] } | undefined)?.itemcollection;
+  return Array.isArray(coll) ? coll.map((c) => c.item) : [];
 }
 
 /** 4.6 NotAuthorized-DTO */

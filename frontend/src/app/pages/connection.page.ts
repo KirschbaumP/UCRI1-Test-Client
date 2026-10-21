@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, effect, inject, signal } from '@angular/core';
-import { HomeDto, TokenStatus } from '@ucri/shared';
+import { HomeDto, TokenFieldNames, TokenStatus } from '@ucri/shared';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
@@ -42,6 +42,9 @@ import { CallResultComponent } from '../shared/call-result.component';
             <nz-descriptions-item nzTitle="Pflicht-Appendices">
               {{ cfg().strictRequiredAppendices ? 'fehlende → 400 Bad Request' : 'fehlende → Warnung' }}
             </nz-descriptions-item>
+            <nz-descriptions-item nzTitle="JWT-Feldnamen">
+              {{ tokenFieldNamesLabel[cfg().tokenFieldNames] }}
+            </nz-descriptions-item>
           </nz-descriptions>
         </nz-card>
       </div>
@@ -53,6 +56,10 @@ import { CallResultComponent } from '../shared/call-result.component';
               <nz-descriptions-item nzTitle="Base-Url"><code>{{ p.baseUrl }}</code></nz-descriptions-item>
               <nz-descriptions-item nzTitle="Client-Id"><code>{{ p.clientId }}</code></nz-descriptions-item>
               <nz-descriptions-item nzTitle="Leitstellenkennung"><code>{{ p.controlCenterId }}</code></nz-descriptions-item>
+              <nz-descriptions-item nzTitle="Content-Type"><code>{{ p.contentType }}</code></nz-descriptions-item>
+              <nz-descriptions-item nzTitle="Basic-Auth">
+                <code>{{ p.basicAuthFormat === 'clientIdAndSecret' ? 'base64(Client-Id:Secret)' : 'base64(Secret)' }}</code>
+              </nz-descriptions-item>
               <nz-descriptions-item nzTitle="Token">
                 @if (token()?.hasToken) {
                   <nz-tag [nzColor]="remaining() > 0 ? 'green' : 'red'">
@@ -117,6 +124,11 @@ export class ConnectionPage {
   readonly partner = this.appConfig.selectedPartner;
   readonly call = createCallRunner();
   readonly token = signal<TokenStatus | null>(null);
+  readonly tokenFieldNamesLabel: Record<TokenFieldNames, string> = {
+    camelCase: 'accessToken, expiresIn, tokenType',
+    snakeCase: 'access_token, expires_in, token_type',
+    both: 'camelCase und snake_case',
+  };
   readonly homeDto = signal<Partial<HomeDto> | null>(null);
 
   private readonly now = signal(Date.now());

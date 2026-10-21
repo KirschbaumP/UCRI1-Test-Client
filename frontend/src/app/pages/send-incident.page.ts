@@ -6,6 +6,7 @@ import {
   createSampleIncident,
   IncidentDto,
   InformerDto,
+  itemsOf,
   nowUtc,
   PatientDto,
   ResourceDto,
@@ -221,9 +222,9 @@ export class SendIncidentPage {
     const p = this.partner();
     if (!p) return;
     const c = await this.masterData.run(() => this.api.classifications(p.id));
-    if (c?.ok && Array.isArray(c.body)) this.partnerClassifications.set(c.body);
+    if (c?.ok) this.partnerClassifications.set(itemsOf(c.body));
     const r = await this.masterData.run(() => this.api.resourceTypes(p.id));
-    if (r?.ok && Array.isArray(r.body)) this.partnerResourceTypes.set(r.body);
+    if (r?.ok) this.partnerResourceTypes.set(itemsOf(r.body));
   }
 
   // --- Senden -----------------------------------------------------------------

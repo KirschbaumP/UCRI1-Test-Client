@@ -119,7 +119,8 @@ Diese Abweichungen werden akzeptiert und als Warnung protokolliert:
 - Zeitstempel wie in den Beispielen zusätzlich in Anführungszeichen
 - Pfade `acknowlegements` und `resourceRequest`
 - Basic-Auth als `base64(id:secret)`
-- `expires_in` als Dauer oder als Unix-Timestamp
+- JWT-Felder in `snake_case` (`access_token`) statt `camelCase` (`accessToken`)
+- `expiresIn` als Dauer oder als Unix-Timestamp
 
 </details>
 
@@ -162,10 +163,32 @@ Endpunkte und DTOs sind in 1.0 und 1.1 identisch.
 | `jwtSecret`                        | Signatur-Secret der ausgestellten Tokens (ENV `JWT_SECRET`)                                 |
 | `tokenLifetimeSec`                 | Gültigkeit ausgestellter Tokens                                                             |
 | `tokenExpiresInFormat`             | `seconds` (wie im Spec-Beispiel) oder `unixTimestamp` (wie im Spec-Text)                    |
+| `tokenFieldNames`                  | Feldnamen des ausgestellten JWT: `camelCase` (`accessToken`, wie Tabelle 4.5 und OpenAPI), `snakeCase` (`access_token`, wie im Spec-Beispiel) oder `both` (Standard) |
 | `strictRequiredAppendices`         | fehlende Pflicht-Appendices als Fehler (400) statt Warnung                                  |
 | `inboundClients`                   | Client-Id/Secret, mit denen sich Partner bei uns autorisieren dürfen                        |
 | `partners`                         | Partner-Schnittstellen: `id`, `name`, `baseUrl` (inkl. `/api`), `clientId`, `clientSecret`, `controlCenterId` |
 | `classifications`, `resourceTypes` | Stammdaten, die unsere Schnittstelle ausliefert (5.7/5.8)                                   |
+
+Optionale Einstellungen pro Partner, für Gegenstellen, die sich an die OpenAPI-Definition statt an den Text der Spezifikation halten:
+
+| Schlüssel         | Werte                                                                                                   | Standard           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------ |
+| `contentType`     | `application/json` oder `application/vnd.simplemedia+json`, gesendet als `Content-Type`, `Accept` und `Response-Content-Type` | `application/json` |
+| `basicAuthFormat` | `secret`: `base64(Client-Secret)` wie in Kap. 5.2, `clientIdAndSecret`: `base64(Client-Id:Client-Secret)` wie bei HTTP Basic Auth | `secret`           |
+
+```json
+{
+  "id": "partner",
+  "name": "Partner-Leitstelle",
+  "baseUrl": "https://partner.example/api",
+  "clientId": "els-test",
+  "clientSecret": "geheim",
+  "contentType": "application/vnd.simplemedia+json",
+  "basicAuthFormat": "clientIdAndSecret"
+}
+```
+
+Als Client akzeptiert der Test-Client JWTs in beiden Schreibweisen. Bei `snake_case` gibt er im Traffic-Log eine Warnung aus.
 
 Eine ungültige Konfiguration bricht den Start mit einer Fehlermeldung ab.
 

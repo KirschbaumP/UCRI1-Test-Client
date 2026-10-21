@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { CallResult, ClassificationDto, ResourceTypeDto } from '@ucri/shared';
+import { CallResult, ClassificationDto, itemsOf, ResourceTypeDto } from '@ucri/shared';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -124,11 +124,7 @@ export class MasterDataPage {
     a.abbreviation.localeCompare(b.abbreviation);
 
   private listOf<T>(r: CallResult | null): T[] {
-    const body = r?.body as unknown;
-    if (Array.isArray(body)) return body as T[];
-    // application/vnd.simplemedia+json
-    const coll = (body as { itemcollection?: { item: T }[] } | undefined)?.itemcollection;
-    return Array.isArray(coll) ? coll.map((c) => c.item) : [];
+    return itemsOf<T>(r?.body);
   }
 
   private applyFilter<T extends { abbreviation: string; description: string }>(list: T[]): T[] {

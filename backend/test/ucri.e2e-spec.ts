@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createSampleIncident, nowUtc } from '@ucri/shared';
+import { createSampleIncident, itemsOf, nowUtc } from '@ucri/shared';
 import { AppModule } from '../src/app.module.js';
 import { type AppConfig } from '../src/config/app-config.js';
 import { configureApp } from '../src/setup.js';
@@ -22,6 +22,7 @@ function testConfig(ucriVersion: '1.0' | '1.1'): AppConfig {
     jwtSecret: 'test',
     tokenLifetimeSec: 3600,
     tokenExpiresInFormat: 'seconds',
+    tokenFieldNames: 'both',
     strictRequiredAppendices: false,
     requestTimeoutMs: 5000,
     inboundClients: [{ clientId: 'els-test', clientSecret: 'geheim' }],
@@ -51,15 +52,16 @@ async function token(server: App): Promise<string> {
     .set('Authorization', `Basic ${b64('geheim')}`)
     .set('ClientId', b64('els-test'))
     .expect(200);
-  return res.body.access_token as string;
+  return res.body.accessToken as string;
 }
 
 describe('UCRI-Schnittstelle (e2e)', () => {
   let app: NestExpressApplication;
+  let config: AppConfig;
   let server: App;
 
   beforeAll(async () => {
-    ({ app } = await startApp('1.1'));
+    ({ app, config } = await startApp('1.1'));
     server = app.getHttpServer();
   });
 
@@ -72,9 +74,35 @@ describe('UCRI-Schnittstelle (e2e)', () => {
         .set('Authorization', `Basic ${b64('geheim')}`)
         .set('ClientId', b64('els-test'))
         .expect(200);
-      expect(res.body).toMatchObject({ expires_in: 3600, token_type: 'Bearer' });
-      expect(typeof res.body.access_token).toBe('string');
+      // Standard "both": camelCase (Tabelle 4.5, OpenAPI) und snake_case (Beispiel)
+      expect(res.body).toMatchObject({ expiresIn: 3600, tokenType: 'Bearer', expires_in: 3600, token_type: 'Bearer' });
+      expect(typeof res.body.accessToken).toBe('string');
+      expect(res.body.access_token).toBe(res.body.accessToken);
     });
+
+    it.each([
+      ['camelCase', ['accessToken', 'expiresIn', 'tokenType']],
+      ['snakeCase', ['access_token', 'expires_in', 'token_type']],
+    ] as const)('liefert mit tokenFieldNames "%s" nur diese Feldnamen', async (naming, fields) => {
+      config.tokenFieldNames = naming;
+      try {
+        const res = await request(server)
+          .get('/api/authorize')
+          .set('Authorization', `Basic ${b64('geheim')}`)
+          .set('ClientId', b64('els-test'))
+          .expect(200);
+        expect(Object.keys(res.body).sort()).toEqual([...fields].sort());
+      } finally {
+        config.tokenFieldNames = 'both';
+      }
+    });
+
+    it('akzeptiert Basic-Auth als base64(Client-Id:Secret)', () =>
+      request(server)
+        .get('/api/authorize')
+        .set('Authorization', `Basic ${b64('els-test:geheim')}`)
+        .set('ClientId', b64('els-test'))
+        .expect(200));
 
     it('400 bei unvollständigem Request', () => request(server).get('/api/authorize').expect(400));
 
@@ -181,6 +209,32 @@ describe('UCRI-Schnittstelle (e2e)', () => {
     const inbound = store.get('inbound', sid)!;
     expect(inbound.confirmations.map((c) => c.direction)).toEqual(['outbound', 'outbound']);
     expect(inbound.messages[0].direction).toBe('outbound');
+  });
+
+  it('Loopback mit simplemedia+json, base64(Client-Id:Secret) und JWT in camelCase', async () => {
+    config.partners.push({
+      ...config.partners[0],
+      id: 'openapi',
+      contentType: 'application/vnd.simplemedia+json',
+      basicAuthFormat: 'clientIdAndSecret',
+    });
+    config.tokenFieldNames = 'camelCase';
+    try {
+      const client = app.get(PartnerClientService);
+      const auth = await client.authorize('openapi');
+      expect(auth.status).toBe(200);
+      expect(auth.traffic[0].issues ?? []).toEqual([]);
+
+      const types = await client.resourceTypes('openapi', false);
+      expect(types.status).toBe(200);
+      expect(itemsOf(types.body)).toEqual([{ abbreviation: 'RTW', description: 'Rettungswagen' }]);
+
+      const incident = createSampleIncident({ version: '1.1', sender: 'els-test', target: 'els-test' });
+      expect((await client.sendIncident('openapi', incident)).status).toBe(201);
+    } finally {
+      config.partners.pop();
+      config.tokenFieldNames = 'both';
+    }
   });
 
   it('akzeptiert die Pfad-Schreibweisen aus den Spec-Beispielen', async () => {

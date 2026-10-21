@@ -9,7 +9,7 @@ import {
   HomeDto,
   IncidentDto,
   IncidentRecord,
-  JwtDto,
+  JwtResponseDto,
   MessageDto,
   RawRequest,
   ResourceRequestActionCall,
@@ -48,7 +48,7 @@ export class UiApiService {
 
   tokenStatus = (partnerId: string) => this.get<TokenStatus>(this.partner(partnerId, 'token'));
   clearToken = (partnerId: string) => this.delete(this.partner(partnerId, 'token'));
-  authorize = (partnerId: string) => this.post<CallResult<JwtDto>>(this.partner(partnerId, 'authorize'));
+  authorize = (partnerId: string) => this.post<CallResult<JwtResponseDto>>(this.partner(partnerId, 'authorize'));
   home = (partnerId: string) => this.post<CallResult<HomeDto>>(this.partner(partnerId, 'home'));
   classifications = (partnerId: string, etag = true) =>
     this.post<CallResult<ClassificationDto[]>>(this.partner(partnerId, `classifications?etag=${etag}`));

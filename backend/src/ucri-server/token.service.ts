@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { type JwtDto, type Link, type NotAuthorizedDto } from '@ucri/shared';
+import {
+  type JwtResponseDto,
+  type Link,
+  type NotAuthorizedDto,
+} from '@ucri/shared';
 import {
   APP_CONFIG,
   type AppConfig,
@@ -27,7 +31,7 @@ export function decodeBase64Lenient(value: string): {
 }
 
 export type AuthorizeResult =
-  | { ok: true; client: InboundClientConfig; token: JwtDto; notes: string[] }
+  | { ok: true; client: InboundClientConfig; token: JwtResponseDto; notes: string[] }
   | { ok: false; status: 400 | 401; message: string };
 
 /** IdentityManager der eigenen UCRI-API (Kap. 3.3, 5.2). */
@@ -104,11 +108,24 @@ export class TokenService {
       ok: true,
       client,
       notes,
-      token: {
+      token: this.jwtDto(accessToken, expiresIn),
+    };
+  }
+
+  /** Feldnamen laut `tokenFieldNames`: camelCase (Tabelle 4.5), snake_case (Beispiel) oder beide */
+  private jwtDto(accessToken: string, expiresIn: number): JwtResponseDto {
+    const naming = this.config.tokenFieldNames;
+    return {
+      ...(naming !== 'snakeCase' && {
+        accessToken,
+        expiresIn,
+        tokenType: 'Bearer',
+      }),
+      ...(naming !== 'camelCase' && {
         access_token: accessToken,
         expires_in: expiresIn,
         token_type: 'Bearer',
-      },
+      }),
     };
   }
 
