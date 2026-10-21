@@ -3,12 +3,12 @@
 #   Leitstelle B: http://localhost:3002   (intern: http://leitstelle-b:3000/api)
 # Partner, Credentials und Stammdaten stehen in config/leitstelle-{a,b}.config.json.
 #
-# Statt lokal zu bauen kann auch das veröffentlichte Image verwendet werden:
-#   image: ghcr.io/kirschbaump/ucri1-test-client:latest  (und "build" entfernen)
+#   docker compose up           -> veröffentlichtes Image aus ghcr.io verwenden
+#   docker compose up --build   -> Image lokal aus dem Quellcode bauen
 
 x-ucri-test-client: &ucri-test-client
   build: .
-  image: ucri-test-client:latest
+  image: ghcr.io/kirschbaump/ucri1-test-client:latest
   environment: &env
     # UCRI-Version beim Start festlegen: "1.0" oder "1.1"
     UCRI_VERSION: "1.1"
